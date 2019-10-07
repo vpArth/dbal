@@ -273,4 +273,31 @@ class SqliteSchemaManagerTest extends TestCase
             ],
         ];
     }
+
+    /**
+     * @dataProvider getDataColumnCheckConstraint
+     */
+    public function testParseColumnCheck(?string $check, string $column, string $sql): void
+    {
+        $conn = $this->createMock(Connection::class);
+        $conn->method('getDatabasePlatform')->willReturn(new SqlitePlatform());
+
+        $manager = new SqliteSchemaManager($conn);
+        $ref = new ReflectionMethod($manager, 'parseColumnCheckConstraintFromSQL');
+        $ref->setAccessible(true);
+
+        self::assertSame($check, $ref->invoke($manager, $column, $sql));
+    }
+
+
+    /**
+     * @return mixed[][]
+     */
+    public static function getDataColumnCheckConstraint(): iterable
+    {
+        return [
+            ['"a" > 0', 'a', 'CREATE TABLE "a" ("a" text DEFAULT (lower(ltrim(" a") || rtrim("a "))) CHECK ("a" > 0) NOT NULL COLLATE NOCASE UNIQUE, "b" text COLLATE RTRIM)'],
+            ['TRIM("a") || TRIM("a") = (("a") || "a")', 'a', 'CREATE TABLE "a" ("a" text CHECK (TRIM("a") || TRIM("a") = (("a") || "a")) NOT NULL COLLATE NOCASE UNIQUE, "b" text COLLATE RTRIM)'],
+        ];
+    }
 }

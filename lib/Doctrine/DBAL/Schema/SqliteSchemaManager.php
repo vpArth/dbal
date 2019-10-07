@@ -8,7 +8,6 @@ use Doctrine\DBAL\FetchMode;
 use Doctrine\DBAL\Types\StringType;
 use Doctrine\DBAL\Types\TextType;
 use Doctrine\DBAL\Types\Type;
-use const CASE_LOWER;
 use function array_change_key_case;
 use function array_map;
 use function array_reverse;
@@ -27,6 +26,7 @@ use function strtolower;
 use function trim;
 use function unlink;
 use function usort;
+use const CASE_LOWER;
 
 /**
  * Sqlite SchemaManager.
@@ -277,6 +277,16 @@ class SqliteSchemaManager extends AbstractSchemaManager
                 $column->setPlatformOption('collation', $this->parseColumnCollationFromSQL($columnName, $createSql) ?: 'BINARY');
             }
 
+            $check = $this->parseColumnCheckConstraintFromSQL($columnName, $createSql);
+            if ($check) {
+                $exCheck = $column->getCustomSchemaOption('check');
+                if ($exCheck) {
+                    $exCheck = is_array($exCheck) ? $exCheck : [$exCheck];
+                    $check = array_push($exCheck, $check);
+                }
+                $column->setCustomSchemaOption('check', $check);
+            }
+
             $comment = $this->parseColumnCommentFromSQL($columnName, $createSql);
 
             if ($comment === null) {
@@ -470,7 +480,28 @@ class SqliteSchemaManager extends AbstractSchemaManager
         return $match[1];
     }
 
-    private function parseTableCommentFromSQL(string $table, string $sql) : ?string
+    private function getColumnRegexp(string $column): string
+    {
+        // todo: refactor other methods to use that
+        return sprintf('(?:\W%s\W|\W%s\W)', preg_quote($column), preg_quote($this->_platform->quoteSingleIdentifier($column)));
+    }
+
+    private function parseColumnCheckConstraintFromSQL(string $column, string $sql): ?string
+    {
+        $columnRegexp = $this->getColumnRegexp($column);
+        $skipTypeDefRegexp = '[^,(]+(?:\([^()]+\)[^,]*)?';
+        $recursiveFuncPart = '(?<expr>\( (?<check>(?: (?>[^()]+) | (?P>expr) )*) \))';
+        $sqlPart = '(?<sql>CHECK\s*' . $recursiveFuncPart . ')';
+        $pattern = "{{$columnRegexp}{$skipTypeDefRegexp}{$sqlPart}}misx";
+
+        if (preg_match($pattern, $sql, $match) !== 1) {
+            return null;
+        }
+
+        return $match['check'] === '' ? null : $match['check'];
+    }
+
+    private function parseTableCommentFromSQL(string $table, string $sql): ?string
     {
         $pattern = '/\s* # Allow whitespace characters at start of line
 CREATE\sTABLE # Match "CREATE TABLE"

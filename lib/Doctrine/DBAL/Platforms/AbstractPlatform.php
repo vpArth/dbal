@@ -2255,7 +2255,7 @@ abstract class AbstractPlatform
                 ' ' . $this->getUniqueFieldDeclarationSQL() : '';
 
             $check = isset($field['check']) && $field['check'] ?
-                ' ' . $field['check'] : '';
+                ' ' . $this->getColumnCheckConstraintDeclarationSQL($field['check']) : '';
 
             $typeDecl  = $field['type']->getSQLDeclaration($field, $this);
             $columnDef = $typeDecl . $charset . $default . $notnull . $unique . $check . $collation;
@@ -2612,6 +2612,11 @@ abstract class AbstractPlatform
     public function getColumnCollationDeclarationSQL($collation)
     {
         return $this->supportsColumnCollation() ? 'COLLATE ' . $collation : '';
+    }
+
+    public function getColumnCheckConstraintDeclarationSQL($check)
+    {
+        return $this->supportsColumnCheckConstraints() ? "CHECK($check)" : '';
     }
 
     /**
@@ -3314,6 +3319,11 @@ abstract class AbstractPlatform
      * @return bool
      */
     public function supportsColumnCollation()
+    {
+        return false;
+    }
+
+    public function supportsColumnCheckConstraints()
     {
         return false;
     }

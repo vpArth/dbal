@@ -942,6 +942,11 @@ class SqlitePlatform extends AbstractPlatform
         return array_merge($sql, $tableSql, $columnSql);
     }
 
+    public function supportsColumnCheckConstraints()
+    {
+        return true;
+    }
+
     /**
      * @return string[]|false
      */
